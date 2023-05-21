@@ -10,7 +10,7 @@
 
 Elmo is a command-line tool that leverages OpenAI's powerful language models to create a fully interactive chat interface for pair programming right in your terminal. 
 
-With the **"staging area"** feature, you can add files to the context window without the hassle of copying and pasting every time.
+With the **"staging area"**, you can keep files in the context window without the hassle of copying and pasting every time you make changes to your code.
 
 ## Installation
 
@@ -32,22 +32,19 @@ Here's how you can use llmo from the command line:
 
 ```bash
 # Basic usage
-llmo "your_prompt"
+llmo "Could you show me an example of valid json?"
 
 # Adding files to context
-llmo "your_prompt" -f "your_file.py" -f "your_other_file.py"
 
-# Selecting model
-llmo "your_prompt" -m "gpt-4"
+# main.py
+# from utils import add_numbers
+# result = add_numbers(5, 3)
 
-# Passing API key
-llmo "your_prompt" -k "your_openai_api_key" # this is optional
+# utils.py
+# def add_numbers(a, b):
+#     return a + b
 
-# disable AI personality
-llmo "your_prompt" --no-personality
-
-# Set max tokens
-llmo "your_prompt" -t 5000
+llmo "How can I make add_numbers return a string?" -f "main.py" -f "utils.py"
 ```
 
 ## License
