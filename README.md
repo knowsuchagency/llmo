@@ -4,70 +4,56 @@
 - Protector
 - Worthy to be Loved
 - Helm from God
-- (**Most Importantly**) Helpful AI programming CLI tool
+- (**Most Importantly**) A helpful AI programming CLI tool
 
 <img src="static/mascot.png" alt="elmo" style="width: 400px; height: auto;">   
 
-LLMO is a powerful, easy-to-use command-line chat application that leverages OpenAI's GPT-3.5-turbo to provide an interactive pair-programming experience. With LLMO, you can have a
-conversation with your AI assistant, stage files for the assistant to analyze, and receive insightful responses based on the context provided.
+Elmo is a command-line tool that leverages OpenAI's powerful language models to create a fully interactive chat interface for pair programming right in your terminal. 
 
-## Features
-
-- Interactive command-line interface
-- Pair-programming with AI assistance
-- Supports multiple OpenAI models
-- Ability to stage files for context-aware responses
-- Easy navigation between chat and context tabs
-- Customizable settings
+With the **"staging area"** feature, you can add files to the context window without the hassle of copying and pasting every time.
 
 ## Installation
 
-```sh
+You can install the package via pip:
+```bash
 pip install llmo
 ```
 
-4. (Optional) Set up an environment variable for your OpenAI API key:
+## Features
 
-```sh
-export OPENAI_API_KEY=sk-...
-```
+- Interactive Chat: Enjoy real-time, interactive programming assistance in your terminal.
+- Staging Area: Easily add files to the AI's context to update it about your ongoing coding tasks. No need to copy and paste updates.
+- Model Customization: Choose the OpenAI model that fits your needs.
+- Personality: By default, Elmo loves to make bodybuilding references. This can be turned off through a CLI flag or environment variable.
 
 ## Usage
 
-To start the LLMO chat app, run:
+Here's how you can use llmo from the command line:
 
-```sh
-lm
-# or
-llmo
+```bash
+# Basic usage
+llmo "your_prompt"
+
+# Adding files to context
+llmo "your_prompt" -f "your_file.py" -f "your_other_file.py"
+
+# Selecting model
+llmo "your_prompt" -m "gpt-4"
+
+# Passing API key
+llmo "your_prompt" -k "your_openai_api_key" # this is optional
+
+# Enable/disable AI personality
+llmo "your_prompt" --no-personality
+
+# Set max tokens
+llmo "your_prompt" -t 5000
 ```
-
-Alternatively, you can provide an initial prompt and stage files for context as command-line arguments:
-
-```sh
-lm "how can I add a cli to my python script?" -f my_script.py -f utils.py
-```
-
-### Chat Tab
-
-Type your message in the input field at the bottom of the chat tab and press `Enter` to submit. The AI assistant will analyze your prompt and provide a response based on the prompt and
-staged files.
-
-### Context Tab
-
-Switch between the chat and context tabs by pressing `Ctrl+Z`. In the context tab, you can:
-
-- Browse and select files from the directory tree
-- Stage files for the AI assistant by pressing the "Stage File" button or pressing `S`
-- Reset the staging area by pressing the "Reset Staging Area" button or pressing `R`
-- Select the OpenAI model to use from the "Model Settings" dropdown
-- Update the API Key from the context menu
-
-### Additional Actions
-
-- Reset chat by pressing `Ctrl+X`
-- Reset all settings by pressing `Ctrl+Shift+A`
 
 ## License
 
-LLMO chat app is released under the [Apache 2 License](LICENSE).
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+
+## Disclaimer
+
+This tool is not officially associated with OpenAI. Always follow OpenAI's use case policy when interacting with their API.
