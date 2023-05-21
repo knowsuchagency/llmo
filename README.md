@@ -6,7 +6,7 @@
 - Helm from God
 - (**Most Importantly**) Helpful AI programming CLI tool
 
-![elmo](static/mascot.png)
+<img src="static/mascot.png" alt="elmo" style="width: 400px; height: auto;">   
 
 LLMO is a powerful, easy-to-use command-line chat application that leverages OpenAI's GPT-3.5-turbo to provide an interactive pair-programming experience. With LLMO, you can have a
 conversation with your AI assistant, stage files for the assistant to analyze, and receive insightful responses based on the context provided.
