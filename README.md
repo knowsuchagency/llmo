@@ -32,7 +32,7 @@ Here's how you can use llmo from the command line:
 
 ```bash
 # Basic usage
-llmo "Could you show me an example of valid json?"
+lm "Could you show me an example of valid json?"
 
 # Adding files to context
 
@@ -44,7 +44,7 @@ llmo "Could you show me an example of valid json?"
 # def add_numbers(a, b):
 #     return a + b
 
-llmo "How can I make add_numbers return a string?" -f "main.py" -f "utils.py"
+lm "How can I make add_numbers return a string?" -f "main.py" -f "utils.py"
 ```
 
 ## License
