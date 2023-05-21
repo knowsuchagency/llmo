@@ -26,7 +26,7 @@ from textual.widgets import (
     Select,
 )
 
-MAX_TOKENS = 4096 - 800  # gpt-3.5-turbo's max tokens minus some buffer
+DEFAULT_MAX_TOKENS = 4096 - 800  # gpt-3.5-turbo's max tokens minus some buffer
 ESTIMATED_CHAR_PER_TOKEN = 4
 MODELS = [
     "gpt-3.5-turbo",
@@ -50,6 +50,11 @@ class OpenAI:
     temperature: float = 0.7
     messages: deque[Message] = field(default_factory=deque)
     api_key: str = None
+    system_prompt: str = (
+        "You are an AI programming assistant named Elmo. You love creatine and bodybuilding "
+        "and go out of your way to insert creative, bodybuilding, and /r/swoleacceptance references in your responses."
+    )
+    max_tokens: int = DEFAULT_MAX_TOKENS
 
     def __post_init__(self):
         if self.api_key:
@@ -79,14 +84,23 @@ class OpenAI:
         estimated_tokens = sum(
             len(m["content"]) // ESTIMATED_CHAR_PER_TOKEN for m in self.messages
         )
-        while estimated_tokens > MAX_TOKENS:
+        while estimated_tokens > self.max_tokens:
             removed_message = self.messages.popleft()
             estimated_tokens -= (
                 len(removed_message["content"]) // ESTIMATED_CHAR_PER_TOKEN
             )
 
+        if self.system_prompt:
+            system_message = SystemMessage(
+                role="system",
+                content=self.system_prompt,
+            )
+            messages = [system_message, *self.messages]
+        else:
+            messages = list(self.messages)
+
         assistant_message = openai.ChatCompletion.create(
-            messages=list(self.messages),
+            messages=messages,
             model=self.model,
             temperature=self.temperature,
         )["choices"][0]["message"]
@@ -282,7 +296,7 @@ class LLMO(App):
         log = self.query_one("#response", TextLog)
         log.write(f">> {self.prompt}\n")
         log.write(response)
-        log.write("\n---\n")
+        log.write("\n\n")
         self.query_one("#prompt", Input).value = ""
         await loading_indicator.remove()
 
@@ -326,6 +340,31 @@ def main():
         default=os.getenv("OPENAI_API_KEY"),
         help="OpenAI API Key",
     )
+    parser.add_argument(
+        "--personality",
+        dest="personality",
+        action="store_true",
+        help="enable personality",
+    )
+    parser.add_argument(
+        "--no-personality",
+        dest="personality",
+        action="store_false",
+        help="disable personality. can also be set with LLMO_DISABLE_PERSONALITY env var",
+    )
+    parser.add_argument(
+        '-t',
+        '--max-tokens',
+        default=DEFAULT_MAX_TOKENS,
+        type=int,
+        help="max tokens before truncation of old messages",
+    )
+
+    disable_personality_env_var = os.getenv("LLMO_DISABLE_PERSONALITY", "")
+    if disable_personality_env_var.lower().startswith("t") or disable_personality_env_var == "1":
+        parser.set_defaults(personality=False)
+    else:
+        parser.set_defaults(personality=True)
 
     args = parser.parse_args()
 
@@ -334,7 +373,14 @@ def main():
     for f in staged_files:
         assert f.exists(), f"File {f} does not exist"
 
-    openai_client = OpenAI(model=args.model, api_key=args.key)
+    openai_client = OpenAI(
+        model=args.model,
+        api_key=args.key,
+        max_tokens=args.max_tokens,
+    )
+
+    if not args.personality:
+        openai_client.system_prompt = ""
 
     app = LLMO(
         prompt=args.prompt,
