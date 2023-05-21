@@ -1,0 +1,35 @@
+Screen {
+    layers: bottom top;
+}
+
+#tabs {
+    height: 10%;
+}
+
+#context-choice-button {
+    width: 1fr;
+}
+
+#chat-choice-button {
+    width: 2fr;
+}
+
+#submit-prompt-button {
+    width: 100%;
+}
+
+#reset-stage-button {
+    width: 100%;
+}
+
+#stage-file-button {
+    width: 50%;
+}
+
+#reset-stage-button {
+    width: 50%;
+}
+
+#directory-tree {
+    height: 90%;
+}
