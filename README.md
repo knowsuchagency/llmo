@@ -43,7 +43,7 @@ llmo "your_prompt" -m "gpt-4"
 # Passing API key
 llmo "your_prompt" -k "your_openai_api_key" # this is optional
 
-# Enable/disable AI personality
+# disable AI personality
 llmo "your_prompt" --no-personality
 
 # Set max tokens

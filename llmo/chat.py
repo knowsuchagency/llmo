@@ -341,12 +341,6 @@ def main():
         help="OpenAI API Key",
     )
     parser.add_argument(
-        "--personality",
-        dest="personality",
-        action="store_true",
-        help="enable personality",
-    )
-    parser.add_argument(
         "--no-personality",
         dest="personality",
         action="store_false",
@@ -361,6 +355,7 @@ def main():
     )
 
     disable_personality_env_var = os.getenv("LLMO_DISABLE_PERSONALITY", "")
+
     if disable_personality_env_var.lower().startswith("t") or disable_personality_env_var == "1":
         parser.set_defaults(personality=False)
     else:
