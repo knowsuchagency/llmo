@@ -6,7 +6,7 @@
 - Helm from God
 - (**Most Importantly**) A helpful AI programming CLI tool
 
-<img src="static/mascot.png" alt="elmo" style="width: 400px; height: auto;">   
+<img src="static/mascot.png" alt="mascot" style="width: 400px; height: auto;">   
 
 Elmo is a command-line tool that leverages OpenAI's powerful language models to create a fully interactive chat interface for pair programming right in your terminal. 
 
