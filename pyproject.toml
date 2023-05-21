@@ -1,0 +1,28 @@
+
+[project]
+name = "llmo"
+version = "0.1.0"
+description = "AI pair programmer"
+authors = [
+    {name = "Stephan Fitzpatrick", email = "stephan@knowsuchagency.com"},
+]
+dependencies = [
+    "textual>=0.24.1",
+    "openai>=0.27.6",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+
+[project.scripts]
+llmo = "llmo.chat:main"
+lm = "llmo.chat:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "textual[dev]",
+]
