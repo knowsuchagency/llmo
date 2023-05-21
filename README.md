@@ -12,12 +12,6 @@ Elmo is a command-line tool that leverages OpenAI's powerful language models to 
 
 With the **"staging area"**, you can keep files in the context window without the hassle of copying and pasting every time you make changes to your code.
 
-## Installation
-
-You can install the package via pip:
-```bash
-pip install llmo
-```
 
 ## Features
 
@@ -25,6 +19,14 @@ pip install llmo
 - Staging Area: Easily add files to the AI's context to update it about your ongoing coding tasks. No need to copy and paste updates.
 - Model Customization: Choose the OpenAI model that fits your needs.
 - Personality: By default, Elmo loves to make bodybuilding references. This can be turned off through a CLI flag or environment variable.
+
+## Installation
+
+The recommended way to install `llmo` is through [pipx][pipx]:
+
+```bash
+pipx install llmo
+```
 
 ## Usage
 
@@ -54,3 +56,5 @@ lm "How can I make add_numbers return a string?" -f "main.py" -f "utils.py"
 ## Disclaimer
 
 This tool is not officially associated with OpenAI. Always follow OpenAI's use case policy when interacting with their API.
+
+[pipx]: https://github.com/pypa/pipx
