@@ -524,7 +524,7 @@ def main():
         "-s",
         "--shell-mode",
         action="store_true",
-        help="pure shell mode (no UI)",
+        help="pure shell mode (no GUI)",
     )
 
     disable_personality_env_var = os.getenv("LLMO_DISABLE_PERSONALITY", "")
