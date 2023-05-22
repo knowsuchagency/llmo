@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import os
-import sys
 from collections import deque
 from copy import copy
 from dataclasses import dataclass, field
@@ -9,7 +8,10 @@ from pathlib import Path
 from typing import TypedDict, Literal, Iterable
 
 import openai
+import rich
+import rich.markdown
 from rich.console import Console
+from rich.prompt import Prompt
 from textual import work, on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, Container, VerticalScroll
@@ -55,10 +57,21 @@ class OpenAI:
     messages: deque[Message] = field(default_factory=deque)
     api_key: str = None
     system_prompt: str = (
-        "You are an AI programming assistant named Elmo. You love creatine and bodybuilding "
+        "You are an AI programming assistant named Elmo. "
+        "Think step-by-step. "
+        "Make sure to include the programming language name at the start of the Markdown code blocks. "
+    )
+    personality_prompt: str = (
+        "You love creatine and bodybuilding "
         "and go out of your way to insert creative, bodybuilding, and /r/swoleacceptance references in your responses."
     )
     max_tokens: int = None
+
+    def add_personality(self):
+        self.system_prompt += self.personality_prompt
+
+    def remove_personality(self):
+        self.system_prompt = self.system_prompt.replace(self.personality_prompt, "")
 
     def __post_init__(self):
         if self.api_key:
@@ -86,14 +99,11 @@ class OpenAI:
 
         self.truncate_old_messages()
 
-        if self.system_prompt:
-            system_message = SystemMessage(
-                role="system",
-                content=self.system_prompt,
-            )
-            messages = [system_message, *self.messages]
-        else:
-            messages = list(self.messages)
+        system_message = SystemMessage(
+            role="system",
+            content=self.system_prompt,
+        )
+        messages = [system_message, *self.messages]
 
         assistant_message = openai.ChatCompletion.create(
             messages=messages,
@@ -136,7 +146,6 @@ class OpenAI:
                     len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
                 )
 
-
     async def asubmit(self, prompt: str, files: Iterable[Path] = None):
         """
         Submit a prompt to the OpenAI API and asynchronously yield tokens.
@@ -157,14 +166,11 @@ class OpenAI:
 
         self.truncate_old_messages()
 
-        if self.system_prompt:
-            system_message = SystemMessage(
-                role="system",
-                content=self.system_prompt,
-            )
-            messages = [system_message, *self.messages]
-        else:
-            messages = list(self.messages)
+        system_message = SystemMessage(
+            role="system",
+            content=self.system_prompt,
+        )
+        messages = [system_message, *self.messages]
 
         events = openai.ChatCompletion.create(
             messages=messages,
@@ -370,6 +376,8 @@ class LLMO(App):
             response_view: TextLog
             self.openai_client.reset()
             response_view.clear()
+        # clear prompt
+        self.query_one("#prompt", Input).value = ""
 
     def on_input_changed(self, event: Input.Changed):
         if event.input.id == "prompt":
@@ -427,23 +435,33 @@ class LLMO(App):
         await self.handle_submission()
 
 
-def run_shell_mode(prompt, openai_client):
+def run_shell_mode(openai_client: OpenAI, prompt=None, files=None):
     console = Console()
-    console.print(f">> {prompt}")
 
     async def display_content():
-        content_buffer = ""
-        async for content in openai_client.asubmit(prompt=prompt):
-            content_buffer += content
-            # Clear the current line and move the cursor to the beginning
-            console.print("\033[K", end="")
-            # Print the buffer without a newline
-            console.print(content_buffer, end="")
-            sys.stdout.flush()
-        # Print a newline after the content is fully fetched
-        console.print()
+        response = ""
+        num_lines_to_clear = 0
 
-    asyncio.run(display_content())
+        async for content in openai_client.asubmit(prompt=prompt, files=files):
+            response += content
+            console.print(content, soft_wrap=True, end="")
+            num_lines_to_clear += content.count("\n")
+
+        if num_lines_to_clear > 0:
+            # Clear the previously printed lines
+            for _ in range(num_lines_to_clear):
+                print("\033[F\033[K", end="")
+
+            md = rich.markdown.Markdown(response)
+            console.print(md)
+        else:
+            console.print()
+
+    if prompt:
+        console.print(f">> : {prompt}")
+    while True:
+        asyncio.run(display_content())
+        prompt = Prompt.ask(">> ")
 
 
 def main():
@@ -528,11 +546,11 @@ def main():
         max_tokens=args.max_tokens,
     )
 
-    if not args.personality:
-        openai_client.system_prompt = ""
+    if args.personality:
+        openai_client.add_personality()
 
     if args.shell_mode:
-        run_shell_mode(args.prompt, openai_client)
+        run_shell_mode(openai_client, prompt=args.prompt, files=args.files)
     else:
         app = LLMO(
             prompt=args.prompt,
