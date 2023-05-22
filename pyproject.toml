@@ -1,7 +1,7 @@
 
 [project]
 name = "llmo"
-version = "0.1.4"
+version = "0.1.5"
 description = "AI pair programmer"
 authors = [
     {name = "Stephan Fitzpatrick", email = "stephan@knowsuchagency.com"},
@@ -13,6 +13,9 @@ dependencies = [
 requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "Apache-2.0"}
+
+[project.urls]
+Source = "https://github.com/knowsuchagency/llmo"
 
 [project.scripts]
 llmo = "llmo.chat:main"
