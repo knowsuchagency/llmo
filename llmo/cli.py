@@ -110,7 +110,7 @@ def main():
         app = LLMO(
             prompt=args.prompt,
             staged_files=staged_files,
-            openai_client=openai_client,
+            llm_client=openai_client,
             rich_text_mode=args.rich_text_mode,
         )
 

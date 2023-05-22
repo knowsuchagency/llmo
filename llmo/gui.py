@@ -1,6 +1,6 @@
 import asyncio
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Protocol
 
 import openai
 from textual import work, on
@@ -26,6 +26,14 @@ from llmo.constants import MODELS
 from llmo.llms import OpenAI
 
 
+class LLMInterface(Protocol):
+    def submit(self, prompt: str, files: Iterable[Path] = None) -> str:
+        ...
+
+    async def asubmit(self, prompt: str, files: Iterable[Path] = None):
+        ...
+
+
 class LLMO(App):
     CSS_PATH = "layout.css"
     BINDINGS = [
@@ -41,7 +49,7 @@ class LLMO(App):
         staged_files: Iterable[Path] = None,
         prompt: str = "",
         current_tab: str = "chat",
-        openai_client: OpenAI = None,
+        llm_client: LLMInterface = None,
         rich_text_mode: bool = False,
         **kwargs,
     ):
@@ -49,7 +57,7 @@ class LLMO(App):
         self.staged_files = set(staged_files) if staged_files else set()
         self.prompt = prompt
         self.current_tab = current_tab
-        self.openai_client = openai_client or OpenAI()
+        self.openai_client = llm_client or OpenAI()
         self.selected_file = None
         self.rich_text_mode = rich_text_mode
         self.markdown = ""
