@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import os
+import sys
 from collections import deque
 from copy import copy
 from dataclasses import dataclass, field
@@ -136,61 +137,61 @@ class OpenAI:
                 )
 
 
-async def asubmit(self, prompt: str, files: Iterable[Path] = None):
-    """
-    Submit a prompt to the OpenAI API and asynchronously yield tokens.
+    async def asubmit(self, prompt: str, files: Iterable[Path] = None):
+        """
+        Submit a prompt to the OpenAI API and asynchronously yield tokens.
 
-    If files are provided, they will be added to the prompt as part of the submission.
-    """
-    for file in files or []:
-        # remove any existing messages with the same file content
-        temp_messages = copy(self.messages)
-        for msg in temp_messages:
-            if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
-                self.messages.remove(msg)
-        # add file content to messages
-        self.messages.append(
-            {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
+        If files are provided, they will be added to the prompt as part of the submission.
+        """
+        for file in files or []:
+            # remove any existing messages with the same file content
+            temp_messages = copy(self.messages)
+            for msg in temp_messages:
+                if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
+                    self.messages.remove(msg)
+            # add file content to messages
+            self.messages.append(
+                {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
+            )
+        self.messages.append({"role": "user", "content": prompt})
+
+        self.truncate_old_messages()
+
+        if self.system_prompt:
+            system_message = SystemMessage(
+                role="system",
+                content=self.system_prompt,
+            )
+            messages = [system_message, *self.messages]
+        else:
+            messages = list(self.messages)
+
+        events = openai.ChatCompletion.create(
+            messages=messages,
+            model=self.model,
+            temperature=self.temperature,
+            stream=True,
         )
-    self.messages.append({"role": "user", "content": prompt})
 
-    self.truncate_old_messages()
+        assistant_message = {
+            "role": "assistant",
+            "content": "",
+        }
 
-    if self.system_prompt:
-        system_message = SystemMessage(
-            role="system",
-            content=self.system_prompt,
-        )
-        messages = [system_message, *self.messages]
-    else:
-        messages = list(self.messages)
+        loop = asyncio.get_event_loop()
 
-    events = openai.ChatCompletion.create(
-        messages=messages,
-        model=self.model,
-        temperature=self.temperature,
-        stream=True,
-    )
-
-    assistant_message = {
-        "role": "assistant",
-        "content": "",
-    }
-
-    loop = asyncio.get_event_loop()
-
-    while response := await loop.run_in_executor(None, next, events):
-        content = response["choices"][0]["delta"].get("content")
-        role = response["choices"][0]["delta"].get("role")
-        finished_reason = response["choices"][0]["finish_reason"]
-        if finished_reason:
-            self.messages.append(assistant_message)
-            return
-        if role:
-            continue
-        elif content:
-            assistant_message["content"] += content
-            yield content
+        while response := await loop.run_in_executor(None, next, events):
+            content = response["choices"][0]["delta"].get("content")
+            role = response["choices"][0]["delta"].get("role")
+            finished_reason = response["choices"][0]["finish_reason"]
+            if finished_reason:
+                self.messages.append(assistant_message)
+                return
+            if role:
+                continue
+            elif content:
+                assistant_message["content"] += content
+                yield content
 
 
 class LLMO(App):
@@ -431,8 +432,16 @@ def run_shell_mode(prompt, openai_client):
     console.print(f">> {prompt}")
 
     async def display_content():
+        content_buffer = ""
         async for content in openai_client.asubmit(prompt=prompt):
-            console.print(content)
+            content_buffer += content
+            # Clear the current line and move the cursor to the beginning
+            console.print("\033[K", end="")
+            # Print the buffer without a newline
+            console.print(content_buffer, end="")
+            sys.stdout.flush()
+        # Print a newline after the content is fully fetched
+        console.print()
 
     asyncio.run(display_content())
 
