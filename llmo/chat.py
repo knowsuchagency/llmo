@@ -469,6 +469,7 @@ def main():
         action="store_true",
         help="enable rich text mode (not recommended for programming)",
     )
+    # TODO: add pure shell mode with history
 
     parser.set_defaults(
         rich_text_mode=False,
