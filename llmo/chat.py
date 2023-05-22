@@ -2,12 +2,13 @@ import argparse
 import asyncio
 import os
 from collections import deque
-from copy import deepcopy, copy
+from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict, Literal, Iterable
 
 import openai
+from rich.console import Console
 from textual import work, on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, Container, VerticalScroll
@@ -26,7 +27,6 @@ from textual.widgets import (
     Markdown,
     Select,
 )
-from textual import log
 
 DEFAULT_MAX_TOKENS = 4097
 ESTIMATED_CHAR_PER_TOKEN = 4.68
@@ -72,7 +72,7 @@ class OpenAI:
 
         If files are provided, they will be added to the prompt as part of the submission.
         """
-        for file in (files or []):
+        for file in files or []:
             # remove any existing messages with the same file content
             temp_messages = copy(self.messages)
             for msg in temp_messages:
@@ -83,17 +83,7 @@ class OpenAI:
             )
         self.messages.append({"role": "user", "content": prompt})
 
-        # truncate old messages to stay under the character limit
-        if self.max_tokens is not None:
-            estimated_tokens = sum(
-                len(m["content"]) / ESTIMATED_CHAR_PER_TOKEN for m in self.messages
-            )
-            log(f"{estimated_tokens = }")
-            while estimated_tokens > self.max_tokens:
-                removed_message = self.messages.popleft()
-                estimated_tokens -= (
-                    len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
-                )
+        self.truncate_old_messages()
 
         if self.system_prompt:
             system_message = SystemMessage(
@@ -114,71 +104,93 @@ class OpenAI:
 
         return assistant_message["content"]
 
-    async def asubmit(self, prompt: str, files: Iterable[Path] = None):
-        """
-        Submit a prompt to the OpenAI API and asynchronously yield tokens.
+    def remove_file_messages(self):
+        temp_messages = copy(self.messages)
+        for msg in temp_messages:
+            if (
+                msg["role"] == "user"
+                and msg["content"].startswith("`")
+                and msg["content"].endswith("```")
+            ):
+                self.messages.remove(msg)
+                return True
+        return False
 
-        If files are provided, they will be added to the prompt as part of the submission.
-        """
-        for file in (files or []):
-            # remove any existing messages with the same file content
-            temp_messages = copy(self.messages)
-            for msg in temp_messages:
-                if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
-                    self.messages.remove(msg)
-            # add file content to messages
-            self.messages.append(
-                {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
-            )
-        self.messages.append({"role": "user", "content": prompt})
-
-        # truncate old messages to stay under the character limit
+    def truncate_old_messages(self):
+        """Truncate old messages to stay under the character limit."""
         if self.max_tokens is not None:
             estimated_tokens = sum(
                 len(m["content"]) / ESTIMATED_CHAR_PER_TOKEN for m in self.messages
             )
-            log(f"{estimated_tokens = }")
             while estimated_tokens > self.max_tokens:
-                removed_message = self.messages.popleft()
+                # Try to remove file messages first
+                if not self.remove_file_messages():
+                    # If no file messages to remove, remove the oldest message
+                    removed_message = self.messages.popleft()
+                else:
+                    # If a file message was removed, continue to the next iteration
+                    continue
+
                 estimated_tokens -= (
-                        len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
+                    len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
                 )
 
-        if self.system_prompt:
-            system_message = SystemMessage(
-                role="system",
-                content=self.system_prompt,
-            )
-            messages = [system_message, *self.messages]
-        else:
-            messages = list(self.messages)
 
-        events = openai.ChatCompletion.create(
-            messages=messages,
-            model=self.model,
-            temperature=self.temperature,
-            stream=True,
+async def asubmit(self, prompt: str, files: Iterable[Path] = None):
+    """
+    Submit a prompt to the OpenAI API and asynchronously yield tokens.
+
+    If files are provided, they will be added to the prompt as part of the submission.
+    """
+    for file in files or []:
+        # remove any existing messages with the same file content
+        temp_messages = copy(self.messages)
+        for msg in temp_messages:
+            if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
+                self.messages.remove(msg)
+        # add file content to messages
+        self.messages.append(
+            {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
         )
+    self.messages.append({"role": "user", "content": prompt})
 
-        assistant_message = {
-            "role": "assistant",
-            "content": "",
-        }
+    self.truncate_old_messages()
 
-        loop = asyncio.get_event_loop()
+    if self.system_prompt:
+        system_message = SystemMessage(
+            role="system",
+            content=self.system_prompt,
+        )
+        messages = [system_message, *self.messages]
+    else:
+        messages = list(self.messages)
 
-        while response := await loop.run_in_executor(None, next, events):
-            content = response["choices"][0]["delta"].get("content")
-            role = response["choices"][0]["delta"].get("role")
-            finished_reason = response["choices"][0]["finish_reason"]
-            if finished_reason:
-                self.messages.append(assistant_message)
-                return
-            if role:
-                continue
-            elif content:
-                assistant_message["content"] += content
-                yield content
+    events = openai.ChatCompletion.create(
+        messages=messages,
+        model=self.model,
+        temperature=self.temperature,
+        stream=True,
+    )
+
+    assistant_message = {
+        "role": "assistant",
+        "content": "",
+    }
+
+    loop = asyncio.get_event_loop()
+
+    while response := await loop.run_in_executor(None, next, events):
+        content = response["choices"][0]["delta"].get("content")
+        role = response["choices"][0]["delta"].get("role")
+        finished_reason = response["choices"][0]["finish_reason"]
+        if finished_reason:
+            self.messages.append(assistant_message)
+            return
+        if role:
+            continue
+        elif content:
+            assistant_message["content"] += content
+            yield content
 
 
 class LLMO(App):
@@ -414,6 +426,17 @@ class LLMO(App):
         await self.handle_submission()
 
 
+def run_shell_mode(prompt, openai_client):
+    console = Console()
+    console.print(f">> {prompt}")
+
+    async def display_content():
+        async for content in openai_client.asubmit(prompt=prompt):
+            console.print(content)
+
+    asyncio.run(display_content())
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="chat and pair-programming from the command-line"
@@ -465,15 +488,14 @@ def main():
     parser.add_argument(
         "-r",
         "--rich-text-mode",
-        dest="rich_text_mode",
         action="store_true",
         help="enable rich text mode (not recommended for programming)",
     )
-    # TODO: add pure shell mode with history
-
-    parser.set_defaults(
-        rich_text_mode=False,
-        personality=True,
+    parser.add_argument(
+        "-s",
+        "--shell-mode",
+        action="store_true",
+        help="pure shell mode (no UI)",
     )
 
     disable_personality_env_var = os.getenv("LLMO_DISABLE_PERSONALITY", "")
@@ -500,14 +522,17 @@ def main():
     if not args.personality:
         openai_client.system_prompt = ""
 
-    app = LLMO(
-        prompt=args.prompt,
-        staged_files=staged_files,
-        openai_client=openai_client,
-        rich_text_mode=args.rich_text_mode,
-    )
+    if args.shell_mode:
+        run_shell_mode(args.prompt, openai_client)
+    else:
+        app = LLMO(
+            prompt=args.prompt,
+            staged_files=staged_files,
+            openai_client=openai_client,
+            rich_text_mode=args.rich_text_mode,
+        )
 
-    app.run()
+        app.run()
 
 
 if __name__ == "__main__":
