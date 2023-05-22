@@ -68,7 +68,8 @@ class OpenAI:
     max_tokens: int = None
 
     def add_personality(self):
-        self.system_prompt += self.personality_prompt
+        if not self.personality_prompt in self.system_prompt:
+            self.system_prompt += self.personality_prompt
 
     def remove_personality(self):
         self.system_prompt = self.system_prompt.replace(self.personality_prompt, "")
