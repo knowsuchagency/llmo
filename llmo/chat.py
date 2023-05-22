@@ -436,7 +436,12 @@ class LLMO(App):
         await self.handle_submission()
 
 
-def run_shell_mode(openai_client: OpenAI, prompt=None, files=None):
+def run_shell_mode(
+    openai_client: OpenAI,
+    prompt=None,
+    files=None,
+    rich_text_mode=False,
+):
     console = Console()
 
     async def display_content():
@@ -448,8 +453,7 @@ def run_shell_mode(openai_client: OpenAI, prompt=None, files=None):
             console.print(content, soft_wrap=True, end="")
             num_lines_to_clear += content.count("\n")
 
-        if num_lines_to_clear > 0:
-            # Clear the previously printed lines
+        if rich_text_mode and num_lines_to_clear > 0:
             for _ in range(num_lines_to_clear):
                 print("\033[F\033[K", end="")
 
@@ -475,8 +479,8 @@ def main():
     parser.add_argument(
         "prompt",
         type=str,
-        nargs="?",
-        default="",
+        nargs=argparse.REMAINDER,
+        default=[],
         help="initial LLM prompt (optional)",
     )
     parser.add_argument(
@@ -538,6 +542,8 @@ def main():
 
     args = parser.parse_args()
 
+    args.prompt = " ".join(args.prompt)
+
     staged_files = [Path(f) for f in args.files] if args.files else []
 
     for f in staged_files:
@@ -553,7 +559,12 @@ def main():
         openai_client.add_personality()
 
     if args.shell_mode:
-        run_shell_mode(openai_client, prompt=args.prompt, files=args.files)
+        run_shell_mode(
+            openai_client,
+            prompt=args.prompt,
+            files=args.files,
+            rich_text_mode=args.rich_text_mode,
+        )
     else:
         app = LLMO(
             prompt=args.prompt,
