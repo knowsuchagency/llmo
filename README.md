@@ -8,7 +8,7 @@
 
 <img src="https://github.com/knowsuchagency/llmo/blob/main/static/mascot.png?raw=true" alt="mascot" style="width: 400px; height: auto;">   
 
-Elmo is a command-line tool that leverages OpenAI's powerful language models to create a fully interactive chat interface for pair programming right in your terminal. 
+The full power of GPT straight from your terminal!
 
 With the **"staging area"**, you can keep files in the context window without the hassle of copying and pasting every time you make changes to your code.
 
@@ -34,7 +34,12 @@ Here's how you can use llmo from the command line:
 
 ```bash
 # Basic usage
-lm "Could you show me an example of valid json?"
+llmo --help
+# you can also use the shorthand
+lm
+
+# You can pass the -s flag if you don't need the full GUI mode
+lm -s "Could you show me an example of valid json?"
 
 # Adding files to context
 
