@@ -462,6 +462,8 @@ def run_shell_mode(openai_client: OpenAI, prompt=None, files=None):
     while True:
         asyncio.run(display_content())
         prompt = Prompt.ask(">> ")
+        if prompt == "exit":
+            return
 
 
 def main():
