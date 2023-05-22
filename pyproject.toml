@@ -7,7 +7,7 @@ authors = [
     {name = "Stephan Fitzpatrick", email = "stephan@knowsuchagency.com"},
 ]
 dependencies = [
-    "textual>=0.24.1",
+    "textual>=0.26.0",
     "openai>=0.27.6",
 ]
 requires-python = ">=3.10"
@@ -22,7 +22,11 @@ lm = "llmo.chat:main"
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
+
+[tool.pdm.scripts]
+debug = "textual console -x EVENT -x WORKER -x DEBUG -x SYSTEM"
+
 [tool.pdm.dev-dependencies]
 dev = [
-    "textual[dev]",
+    "textual[dev]>=0.26.0",
 ]

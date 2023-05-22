@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import os
 from collections import deque
+from copy import deepcopy, copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict, Literal, Iterable
@@ -25,12 +26,14 @@ from textual.widgets import (
     Markdown,
     Select,
 )
+from textual import log
 
-DEFAULT_MAX_TOKENS = 4096 - 800  # gpt-3.5-turbo's max tokens minus some buffer
-ESTIMATED_CHAR_PER_TOKEN = 4
+DEFAULT_MAX_TOKENS = 4097
+ESTIMATED_CHAR_PER_TOKEN = 4.68
 MODELS = [
     "gpt-3.5-turbo",
     "gpt-4",
+    "gpt-4-32k",
 ]
 
 
@@ -54,7 +57,7 @@ class OpenAI:
         "You are an AI programming assistant named Elmo. You love creatine and bodybuilding "
         "and go out of your way to insert creative, bodybuilding, and /r/swoleacceptance references in your responses."
     )
-    max_tokens: int = DEFAULT_MAX_TOKENS
+    max_tokens: int = None
 
     def __post_init__(self):
         if self.api_key:
@@ -69,26 +72,28 @@ class OpenAI:
 
         If files are provided, they will be added to the prompt as part of the submission.
         """
-        for file in files or []:
+        for file in (files or []):
             # remove any existing messages with the same file content
-            for msg in self.messages:
+            temp_messages = copy(self.messages)
+            for msg in temp_messages:
                 if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
                     self.messages.remove(msg)
-            # add file content to messages
             self.messages.append(
                 {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
             )
         self.messages.append({"role": "user", "content": prompt})
 
         # truncate old messages to stay under the character limit
-        estimated_tokens = sum(
-            len(m["content"]) // ESTIMATED_CHAR_PER_TOKEN for m in self.messages
-        )
-        while estimated_tokens > self.max_tokens:
-            removed_message = self.messages.popleft()
-            estimated_tokens -= (
-                len(removed_message["content"]) // ESTIMATED_CHAR_PER_TOKEN
+        if self.max_tokens is not None:
+            estimated_tokens = sum(
+                len(m["content"]) / ESTIMATED_CHAR_PER_TOKEN for m in self.messages
             )
+            log(f"{estimated_tokens = }")
+            while estimated_tokens > self.max_tokens:
+                removed_message = self.messages.popleft()
+                estimated_tokens -= (
+                    len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
+                )
 
         if self.system_prompt:
             system_message = SystemMessage(
@@ -109,6 +114,72 @@ class OpenAI:
 
         return assistant_message["content"]
 
+    async def asubmit(self, prompt: str, files: Iterable[Path] = None):
+        """
+        Submit a prompt to the OpenAI API and asynchronously yield tokens.
+
+        If files are provided, they will be added to the prompt as part of the submission.
+        """
+        for file in (files or []):
+            # remove any existing messages with the same file content
+            temp_messages = copy(self.messages)
+            for msg in temp_messages:
+                if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
+                    self.messages.remove(msg)
+            # add file content to messages
+            self.messages.append(
+                {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
+            )
+        self.messages.append({"role": "user", "content": prompt})
+
+        # truncate old messages to stay under the character limit
+        if self.max_tokens is not None:
+            estimated_tokens = sum(
+                len(m["content"]) / ESTIMATED_CHAR_PER_TOKEN for m in self.messages
+            )
+            log(f"{estimated_tokens = }")
+            while estimated_tokens > self.max_tokens:
+                removed_message = self.messages.popleft()
+                estimated_tokens -= (
+                        len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
+                )
+
+        if self.system_prompt:
+            system_message = SystemMessage(
+                role="system",
+                content=self.system_prompt,
+            )
+            messages = [system_message, *self.messages]
+        else:
+            messages = list(self.messages)
+
+        events = openai.ChatCompletion.create(
+            messages=messages,
+            model=self.model,
+            temperature=self.temperature,
+            stream=True,
+        )
+
+        assistant_message = {
+            "role": "assistant",
+            "content": "",
+        }
+
+        loop = asyncio.get_event_loop()
+
+        while response := await loop.run_in_executor(None, next, events):
+            content = response["choices"][0]["delta"].get("content")
+            role = response["choices"][0]["delta"].get("role")
+            finished_reason = response["choices"][0]["finish_reason"]
+            if finished_reason:
+                self.messages.append(assistant_message)
+                return
+            if role:
+                continue
+            elif content:
+                assistant_message["content"] += content
+                yield content
+
 
 class LLMO(App):
     CSS_PATH = "layout.css"
@@ -126,6 +197,7 @@ class LLMO(App):
         prompt: str = "",
         current_tab: str = "chat",
         openai_client: OpenAI = None,
+        rich_text_mode: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -133,8 +205,9 @@ class LLMO(App):
         self.prompt = prompt
         self.current_tab = current_tab
         self.openai_client = openai_client or OpenAI()
-        self.response = ""
         self.selected_file = None
+        self.rich_text_mode = rich_text_mode
+        self.markdown = ""
 
     def on_mount(self):
         input_widget = self.query_one("#prompt", Input)
@@ -143,6 +216,19 @@ class LLMO(App):
             self.handle_initial_submission()
 
     def compose(self) -> ComposeResult:
+        if not self.rich_text_mode:
+            response_view = TextLog(
+                id="response",
+                wrap=True,
+                markup=True,
+                highlight=True,
+            )
+        else:
+            response_view = Markdown(
+                self.markdown,
+                id="response",
+            )
+
         with Container(id="app"):
             yield Header()
 
@@ -197,12 +283,7 @@ class LLMO(App):
 
                 with Vertical(id="chat"):
                     with VerticalScroll(id="scroll-area"):
-                        yield TextLog(
-                            id="response",
-                            wrap=True,
-                            markup=True,
-                            highlight=True,
-                        )
+                        yield response_view
                     yield Input(
                         placeholder="Type here",
                         id="prompt",
@@ -267,9 +348,15 @@ class LLMO(App):
         self.action_reset_stage()
 
     def action_reset_chat(self):
-        self.response = ""
-        self.query_one("#response", TextLog).clear()
-        self.openai_client.reset()
+        response_view = self.query_one("#response")  # noqa
+        if self.rich_text_mode:
+            response_view: Markdown
+            self.markdown = ""
+            response_view.update(self.markdown)
+        else:
+            response_view: TextLog
+            self.openai_client.reset()
+            response_view.clear()
 
     def on_input_changed(self, event: Input.Changed):
         if event.input.id == "prompt":
@@ -287,16 +374,37 @@ class LLMO(App):
         prompt_area = self.query_one("#prompt")
         loading_indicator = LoadingIndicator()
         await prompt_area.mount(loading_indicator)
-        response = await asyncio.get_event_loop().run_in_executor(
-            None,
-            self.openai_client.submit,
-            self.prompt,
-            self.staged_files,
-        )
-        log = self.query_one("#response", TextLog)
-        log.write(f">> {self.prompt}\n")
-        log.write(response)
-        log.write("\n\n")
+
+        if not self.rich_text_mode:
+            response = await asyncio.get_event_loop().run_in_executor(
+                None,
+                self.openai_client.submit,
+                self.prompt,
+                self.staged_files,
+            )
+            log = self.query_one("#response", TextLog)
+            log.write(f">> {self.prompt}\n")
+            log.write(response)
+            log.write("\n\n")
+        else:
+            scroll_area = self.query_one("#scroll-area")
+            output = self.query_one("#response", Markdown)
+            self.markdown += f"{self.prompt}"
+            output.update(self.markdown)
+            self.markdown += "\n---\n"
+            async for content in self.openai_client.asubmit(
+                prompt=self.prompt,
+                files=self.staged_files,
+            ):
+                self.markdown += content
+                output.update(self.markdown)
+                output.scroll_page_down()
+                scroll_area.scroll_page_down()
+            self.markdown += "\n---\n"
+            output.update(self.markdown)
+            output.scroll_page_down()
+            scroll_area.scroll_page_down()
+
         self.query_one("#prompt", Input).value = ""
         await loading_indicator.remove()
 
@@ -341,25 +449,39 @@ def main():
         help="OpenAI API Key",
     )
     parser.add_argument(
+        "-n",
         "--no-personality",
         dest="personality",
         action="store_false",
         help="disable personality. can also be set with LLMO_DISABLE_PERSONALITY env var",
     )
     parser.add_argument(
-        '-t',
-        '--max-tokens',
-        default=DEFAULT_MAX_TOKENS,
+        "-t",
+        "--max-tokens",
+        default=os.getenv("LLMO_MAX_TOKENS", DEFAULT_MAX_TOKENS),
         type=int,
         help="max tokens before truncation of old messages",
+    )
+    parser.add_argument(
+        "-r",
+        "--rich-text-mode",
+        dest="rich_text_mode",
+        action="store_true",
+        help="enable rich text mode (not recommended for programming)",
+    )
+
+    parser.set_defaults(
+        rich_text_mode=False,
+        personality=True,
     )
 
     disable_personality_env_var = os.getenv("LLMO_DISABLE_PERSONALITY", "")
 
-    if disable_personality_env_var.lower().startswith("t") or disable_personality_env_var == "1":
+    if (
+        disable_personality_env_var.lower().startswith("t")
+        or disable_personality_env_var == "1"
+    ):
         parser.set_defaults(personality=False)
-    else:
-        parser.set_defaults(personality=True)
 
     args = parser.parse_args()
 
@@ -381,6 +503,7 @@ def main():
         prompt=args.prompt,
         staged_files=staged_files,
         openai_client=openai_client,
+        rich_text_mode=args.rich_text_mode,
     )
 
     app.run()
