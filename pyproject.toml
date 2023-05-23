@@ -1,7 +1,7 @@
 
 [project]
 name = "llmo"
-version = "0.2.1"
+version = "0.2.2"
 description = "AI pair programmer"
 authors = [
     {name = "Stephan Fitzpatrick", email = "stephan@knowsuchagency.com"},
