@@ -29,7 +29,7 @@ class OpenAI:
     system_prompt: str = (
         "You are an AI programming assistant named Elmo. "
         "Think step-by-step. "
-        "Make sure to include the programming language name at the start of the Markdown code blocks. "
+        "Make sure to include the programming language name at the start of the Markdown code blocks."
     )
     personality_prompt: str = (
         "You love creatine and bodybuilding "
@@ -37,14 +37,18 @@ class OpenAI:
     )
     max_tokens: int = None
 
+    @property
+    def has_personality(self):
+        return self.personality_prompt in self.system_prompt
+
     def add_personality(self):
-        if not self.personality_prompt in self.system_prompt:
-            self.system_prompt += self.personality_prompt
+        self.system_prompt = self._initial_system_prompt + " " + self.personality_prompt
 
     def remove_personality(self):
-        self.system_prompt = self.system_prompt.replace(self.personality_prompt, "")
+        self.system_prompt = self._initial_system_prompt
 
     def __post_init__(self):
+        self._initial_system_prompt = self.system_prompt
         if self.api_key:
             openai.api_key = self.api_key
 

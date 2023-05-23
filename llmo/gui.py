@@ -19,7 +19,7 @@ from textual.widgets import (
     Footer,
     LoadingIndicator,
     Markdown,
-    Select,
+    Select, Switch,
 )
 
 from llmo.constants import MODELS
@@ -27,10 +27,18 @@ from llmo.llms import OpenAI
 
 
 class LLMInterface(Protocol):
+    has_personality: bool
+
     def submit(self, prompt: str, files: Iterable[Path] = None) -> str:
         ...
 
     async def asubmit(self, prompt: str, files: Iterable[Path] = None):
+        ...
+
+    def add_personality(self) -> None:
+        ...
+
+    def remove_personality(self) -> None:
         ...
 
 
@@ -57,7 +65,7 @@ class LLMO(App):
         self.staged_files = set(staged_files) if staged_files else set()
         self.prompt = prompt
         self.current_tab = current_tab
-        self.openai_client = llm_client or OpenAI()
+        self.llm_client = llm_client or OpenAI()
         self.selected_file = None
         self.rich_text_mode = rich_text_mode
         self.markdown = ""
@@ -85,7 +93,7 @@ class LLMO(App):
         with Container(id="app"):
             yield Header()
 
-            with Horizontal(id="tabs"):
+            with Horizontal(id="tabs", classes="container"):
                 yield Button(
                     "Context",
                     id="context-choice-button",
@@ -125,14 +133,16 @@ class LLMO(App):
                             yield Select(
                                 ((m, m) for m in MODELS),
                                 id="model-select",
-                                value=self.openai_client.model,
+                                value=self.llm_client.model,
                             )
                             yield Input(
-                                value=self.openai_client.api_key,
+                                value=self.llm_client.api_key,
                                 placeholder="API Key",
                                 password=True,
                                 id="api-key-input",
                             )
+                            yield Label("Personality: ")
+                            yield Switch(value=self.llm_client.has_personality, id="personality-switch")
 
                 with Vertical(id="chat"):
                     with VerticalScroll(id="scroll-area"):
@@ -144,9 +154,13 @@ class LLMO(App):
 
         yield Footer()
 
+    @on(Switch.Changed)
+    def toggle_personality(self, event: Switch.Changed) -> None:
+        self.llm_client.add_personality() if event.switch.value else self.llm_client.remove_personality()
+
     @on(Select.Changed)
     def select_changed(self, event: Select.Changed) -> None:
-        self.openai_client.model = str(event.value)
+        self.llm_client.model = str(event.value)
 
     def update_stage_file_button_variant(self):
         selected_file = self.selected_file
@@ -208,7 +222,7 @@ class LLMO(App):
             response_view.update(self.markdown)
         else:
             response_view: TextLog
-            self.openai_client.reset()
+            self.llm_client.reset()
             response_view.clear()
         # clear prompt
         self.query_one("#prompt", Input).value = ""
@@ -217,8 +231,8 @@ class LLMO(App):
         if event.input.id == "prompt":
             self.prompt = event.input.value
         elif event.input.id == "api-key-input":
-            self.openai_client.api_key = event.input.value
-            openai.api_key = self.openai_client.api_key
+            self.llm_client.api_key = event.input.value
+            openai.api_key = self.llm_client.api_key
         else:
             raise ValueError(f"Unknown input: {event.input.id}")
 
@@ -233,7 +247,7 @@ class LLMO(App):
         if not self.rich_text_mode:
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
-                self.openai_client.submit,
+                self.llm_client.submit,
                 self.prompt,
                 self.staged_files,
             )
@@ -247,7 +261,7 @@ class LLMO(App):
             self.markdown += f"{self.prompt}"
             output.update(self.markdown)
             self.markdown += "\n---\n"
-            async for content in self.openai_client.asubmit(
+            async for content in self.llm_client.asubmit(
                 prompt=self.prompt,
                 files=self.staged_files,
             ):
