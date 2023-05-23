@@ -33,10 +33,17 @@ def run_shell_mode(
         else:
             console.print()
 
-    if prompt:
-        console.print(f">> : {prompt}")
+    initial_prompt = True if prompt else False
+
     while True:
+        if not initial_prompt:
+            prompt = Prompt.ask(">> ")
+
+            if prompt in ["exit", "clear"]:
+                if prompt == "exit":
+                    return
+                console.clear()
+                continue
+
         asyncio.run(display_content())
-        prompt = Prompt.ask(">> ")
-        if prompt == "exit":
-            return
+        initial_prompt = False
