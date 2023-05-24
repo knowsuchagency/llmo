@@ -100,10 +100,11 @@ def main():
         openai_client.add_personality()
 
     if args.shell_mode:
+        files = [Path(f) for f in args.files] if args.files else []
         run_shell_mode(
             openai_client,
             prompt=args.prompt,
-            files=args.files,
+            files=files,
             rich_text_mode=args.rich_text_mode,
         )
     else:
