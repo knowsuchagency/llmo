@@ -57,6 +57,14 @@ lm "How can I make add_numbers return a string?" -f main.py -f utils.py
 
 ## Notes
 
+### Authentication
+
+This application uses the [OpenAI][openai] API.
+
+You will need to authenticate with your own API Key.
+
+### Copying Text
+
 [Textual][textual] runs the terminal in application mode. The means that you can't simply copy content as you normally would.
 In [iterm2][iterm2], you can hold down the `option` key to select text. See the documentation for your terminal emulator for more information.
 
@@ -71,3 +79,4 @@ This tool is not officially associated with OpenAI. Always follow OpenAI's use c
 [pipx]: https://github.com/pypa/pipx
 [textual]: https://textual.textualize.io/
 [iterm2]: https://iterm2.com/
+[openai]: https://openai.com/
