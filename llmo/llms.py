@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import TypedDict, Literal, Iterable
 
 import openai
+import openai.error
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 from llmo.constants import ESTIMATED_CHAR_PER_TOKEN
 
@@ -18,6 +20,17 @@ class Message(TypedDict):
 class SystemMessage(TypedDict):
     role: Literal["system"]
     content: str
+
+
+def retry_openai_call(func):
+    return retry(
+        retry=(
+            retry_if_exception_type(openai.error.APIConnectionError)
+            | retry_if_exception_type(openai.error.RateLimitError)
+        ),
+        stop=stop_after_attempt(5),
+        wait=wait_fixed(2),
+    )(func)
 
 
 @dataclass
@@ -55,41 +68,6 @@ class OpenAI:
     def reset(self):
         self.messages = deque()
 
-    def submit(self, prompt: str, files: Iterable[Path] = None):
-        """
-        Submit a prompt to the OpenAI API and return the response.
-
-        If files are provided, they will be added to the prompt as part of the submission.
-        """
-        for file in files or []:
-            # remove any existing messages with the same file content
-            temp_messages = copy(self.messages)
-            for msg in temp_messages:
-                if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
-                    self.messages.remove(msg)
-            self.messages.append(
-                {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
-            )
-        self.messages.append({"role": "user", "content": prompt})
-
-        self.truncate_old_messages()
-
-        system_message = SystemMessage(
-            role="system",
-            content=self.system_prompt,
-        )
-        messages = [system_message, *self.messages]
-
-        assistant_message = openai.ChatCompletion.create(
-            messages=messages,
-            model=self.model,
-            temperature=self.temperature,
-        )["choices"][0]["message"]
-
-        self.messages.append(assistant_message)
-
-        return assistant_message["content"]
-
     def remove_file_messages(self):
         temp_messages = copy(self.messages)
         for msg in temp_messages:
@@ -121,6 +99,7 @@ class OpenAI:
                     len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
                 )
 
+    @retry_openai_call
     async def asubmit(self, prompt: str, files: Iterable[Path] = None):
         """
         Submit a prompt to the OpenAI API and asynchronously yield tokens.
@@ -173,3 +152,39 @@ class OpenAI:
             elif content:
                 assistant_message["content"] += content
                 yield content
+
+    @retry_openai_call
+    def submit(self, prompt: str, files: Iterable[Path] = None):
+        """
+        Submit a prompt to the OpenAI API and return the response.
+
+        If files are provided, they will be added to the prompt as part of the submission.
+        """
+        for file in files or []:
+            # remove any existing messages with the same file content
+            temp_messages = copy(self.messages)
+            for msg in temp_messages:
+                if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
+                    self.messages.remove(msg)
+            self.messages.append(
+                {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
+            )
+        self.messages.append({"role": "user", "content": prompt})
+
+        self.truncate_old_messages()
+
+        system_message = SystemMessage(
+            role="system",
+            content=self.system_prompt,
+        )
+        messages = [system_message, *self.messages]
+
+        assistant_message = openai.ChatCompletion.create(
+            messages=messages,
+            model=self.model,
+            temperature=self.temperature,
+        )["choices"][0]["message"]
+
+        self.messages.append(assistant_message)
+
+        return assistant_message["content"]
