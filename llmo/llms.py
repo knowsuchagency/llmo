@@ -27,6 +27,7 @@ def retry_openai_call(func):
         retry=(
             retry_if_exception_type(openai.error.APIConnectionError)
             | retry_if_exception_type(openai.error.RateLimitError)
+            | retry_if_exception_type(openai.error.APIError)
         ),
         stop=stop_after_attempt(5),
         wait=wait_fixed(2),
