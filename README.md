@@ -8,9 +8,13 @@
 
 <img src="https://github.com/knowsuchagency/llmo/blob/main/static/mascot.png?raw=true" alt="mascot" style="width: 400px; height: auto;">   
 
-The full power of GPT straight from your terminal!
+LLMO is the AI pair programming tool that meets you where you are (your terminal) 😉
 
 With the **"staging area"**, you can keep files in the context window without the hassle of copying and pasting every time you make changes to your code.
+
+## Demo
+
+https://github.com/knowsuchagency/llmo/assets/11974795/72419d64-585b-4cd5-a546-2a07de3e6f03
 
 
 ## Features
@@ -30,10 +34,7 @@ pipx install llmo
 
 ## Usage
 
-Here's how you can use llmo from the command line:
-
 ```bash
-# Basic usage
 llmo --help
 # you can also use the shorthand
 lm
@@ -51,7 +52,7 @@ lm -s "Could you show me an example of valid json?"
 # def add_numbers(a, b):
 #     return a + b
 
-lm "How can I make add_numbers return a string?" -f "main.py" -f "utils.py"
+lm "How can I make add_numbers return a string?" -f main.py -f utils.py
 ```
 
 ## Notes
