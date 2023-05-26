@@ -12,10 +12,6 @@ LLMO is the AI pair programming tool that meets you where you are (your terminal
 
 With the **"staging area"**, you can keep files in the context window without the hassle of copying and pasting every time you make changes to your code.
 
-## Demo
-
-https://github.com/knowsuchagency/llmo/assets/11974795/72419d64-585b-4cd5-a546-2a07de3e6f03
-
 
 ## Features
 
@@ -31,6 +27,11 @@ The recommended way to install `llmo` is through [pipx][pipx]:
 ```bash
 pipx install llmo
 ```
+
+## Demo
+
+https://github.com/knowsuchagency/llmo/assets/11974795/72419d64-585b-4cd5-a546-2a07de3e6f03
+
 
 ## Usage
 
