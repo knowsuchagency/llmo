@@ -29,6 +29,9 @@ from llmo.llms import OpenAI
 class LLMInterface(Protocol):
     has_personality: bool
 
+    def reset(self) -> None:
+        ...
+
     def submit(self, prompt: str, files: Iterable[Path] = None) -> str:
         ...
 

@@ -51,25 +51,12 @@ class OpenAI:
     )
     max_tokens: int = None
 
-    @property
-    def has_personality(self):
-        return self.personality_prompt in self.system_prompt
-
-    def add_personality(self):
-        self.system_prompt = self._initial_system_prompt + " " + self.personality_prompt
-
-    def remove_personality(self):
-        self.system_prompt = self._initial_system_prompt
-
     def __post_init__(self):
         self._initial_system_prompt = self.system_prompt
         if self.api_key:
             openai.api_key = self.api_key
 
-    def reset(self):
-        self.messages = deque()
-
-    def remove_file_messages(self):
+    def _remove_file_messages(self):
         temp_messages = copy(self.messages)
         for msg in temp_messages:
             if (
@@ -81,7 +68,7 @@ class OpenAI:
                 return True
         return False
 
-    def truncate_old_messages(self):
+    def _truncate_old_messages(self):
         """Truncate old messages to stay under the character limit."""
         if self.max_tokens is not None:
             estimated_tokens = sum(
@@ -89,7 +76,7 @@ class OpenAI:
             )
             while estimated_tokens > self.max_tokens:
                 # Try to remove file messages first
-                if not self.remove_file_messages():
+                if not self._remove_file_messages():
                     # If no file messages to remove, remove the oldest message
                     removed_message = self.messages.popleft()
                 else:
@@ -100,13 +87,7 @@ class OpenAI:
                     len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
                 )
 
-    @retry_openai_call
-    async def asubmit(self, prompt: str, files: Iterable[Path] = None):
-        """
-        Submit a prompt to the OpenAI API and asynchronously yield tokens.
-
-        If files are provided, they will be added to the prompt as part of the submission.
-        """
+    async def _prepare_messages(self, files, prompt):
         for file in files or []:
             # remove any existing messages with the same file content
             temp_messages = copy(self.messages)
@@ -118,14 +99,35 @@ class OpenAI:
                 {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
             )
         self.messages.append({"role": "user", "content": prompt})
-
-        self.truncate_old_messages()
-
+        self._truncate_old_messages()
         system_message = SystemMessage(
             role="system",
             content=self.system_prompt,
         )
         messages = [system_message, *self.messages]
+        return messages
+
+    @property
+    def has_personality(self):
+        return self.personality_prompt in self.system_prompt
+
+    def add_personality(self):
+        self.system_prompt = self._initial_system_prompt + " " + self.personality_prompt
+
+    def remove_personality(self):
+        self.system_prompt = self._initial_system_prompt
+
+    def reset(self):
+        self.messages = deque()
+
+    @retry_openai_call
+    async def asubmit(self, prompt: str, files: Iterable[Path] = None):
+        """
+        Submit a prompt to the OpenAI API and asynchronously yield tokens.
+
+        If files are provided, they will be added to the prompt as part of the submission.
+        """
+        messages = await self._prepare_messages(files, prompt)
 
         events = openai.ChatCompletion.create(
             messages=messages,
@@ -161,24 +163,7 @@ class OpenAI:
 
         If files are provided, they will be added to the prompt as part of the submission.
         """
-        for file in files or []:
-            # remove any existing messages with the same file content
-            temp_messages = copy(self.messages)
-            for msg in temp_messages:
-                if msg["role"] == "user" and msg["content"].startswith(f"`{file}`"):
-                    self.messages.remove(msg)
-            self.messages.append(
-                {"role": "user", "content": f"`{file}`\n```{file.read_text()}```"}
-            )
-        self.messages.append({"role": "user", "content": prompt})
-
-        self.truncate_old_messages()
-
-        system_message = SystemMessage(
-            role="system",
-            content=self.system_prompt,
-        )
-        messages = [system_message, *self.messages]
+        messages = self._prepare_messages(files, prompt)
 
         assistant_message = openai.ChatCompletion.create(
             messages=messages,
