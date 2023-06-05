@@ -87,7 +87,7 @@ class OpenAI:
                     len(removed_message["content"]) / ESTIMATED_CHAR_PER_TOKEN
                 )
 
-    async def _prepare_messages(self, files, prompt):
+    def _prepare_messages(self, files, prompt):
         for file in files or []:
             # remove any existing messages with the same file content
             temp_messages = copy(self.messages)
@@ -127,7 +127,7 @@ class OpenAI:
 
         If files are provided, they will be added to the prompt as part of the submission.
         """
-        messages = await self._prepare_messages(files, prompt)
+        messages = self._prepare_messages(files, prompt)
 
         events = openai.ChatCompletion.create(
             messages=messages,
